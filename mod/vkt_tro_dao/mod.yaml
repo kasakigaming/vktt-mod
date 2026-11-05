@@ -1,0 +1,31 @@
+# Trợ Đạo: bảng hướng dẫn realtime cho Vạn Kiếp Tu Tiên.
+# Chỉ đọc trạng thái (tuTien.game.readCtx là bản sao), không đổi luật, không bấm hộ.
+id: vkt_tro_dao
+name: Trợ Đạo
+version: 1.3.0
+api_version: 1
+author: vkt_tro_dao
+description: |
+  Bảng hướng dẫn chơi realtime: việc nên làm ngay, lộ trình tối ưu tới cảnh giới
+  bạn chọn (Luyện Khí → Hóa Thần), phân tích đột phá, chỗ tu luyện tốt nhất quanh
+  đây, xác suất từng lựa chọn sự kiện và lời khuyên khi giao chiến.
+  Mọi con số tính bằng chính hàm lõi của game (tuTien.core), không đoán.
+
+options:
+  - key: muc_tieu
+    label: Cảnh giới mục tiêu
+    hint: Lộ trình tính tới cảnh giới này (đổi được ngay trong bảng).
+    type: choice
+    default: "4"
+    choices:
+      - { value: "1", label: Luyện Khí }
+      - { value: "2", label: Trúc Cơ }
+      - { value: "3", label: Kết Đan }
+      - { value: "4", label: Nguyên Anh }
+      - { value: "5", label: Hóa Thần }
+  - key: tu_mo
+    label: Tự mở bảng khi vào game
+    type: bool
+    default: true
+
+script: main.js
