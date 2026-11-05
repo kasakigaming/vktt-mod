@@ -12,7 +12,7 @@
   'use strict';
   if (window.__vktTroDao && window.__vktTroDao.version) return; // đã nạp
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.3.1';
   const MOD_ID = 'vkt_tro_dao';
   const LS = (k) => `mod:${MOD_ID}:${k}`;
   const REALM_SHORT = ['Phàm Nhân', 'Luyện Khí', 'Trúc Cơ', 'Kết Đan', 'Nguyên Anh', 'Hóa Thần'];
@@ -1432,6 +1432,8 @@
     walkVal(ctx, S, V, arr, out, w, winP, pre) {
       for (const e of arr || []) {
         if (!e || typeof e !== 'object') continue;
+        // phần thưởng của "phúc phận" (if node_flag phuc.X): tính chung ở hiệu ứng phuc_phan bên dưới
+        if (e.if && typeof e.if === 'object' && typeof e.if.node_flag === 'string' && e.if.node_flag.startsWith('phuc.')) continue;
         let p = 1;
         if (e.if !== undefined) {
           const c = this.condP(ctx, e.if);
@@ -1462,20 +1464,34 @@
           else if (typeof o.so === 'number') add(o.so / V.ltY, `${o.so > 0 ? '+' : ''}${o.so} linh thạch`);
         }
         if (e.gia_nhap_mon_phai !== undefined && !S.sect) add(30, 'ĐƯỢC NHẬP TÔNG');
-        if (e.stat && typeof e.stat === 'object') for (const [sk, sv] of Object.entries(e.stat)) if (typeof sv === 'number') add(1.2 * sv, `${sk.replace(/_/g, ' ')} ${sv > 0 ? '+' : ''}${sv}`);
+        if (e.stat && typeof e.stat === 'object') for (const [sk, sv] of Object.entries(e.stat)) if (typeof sv === 'number') add(1.2 * sv, `${{ ngo_tinh: 'ngộ tính', can_cot: 'căn cốt', than_phap: 'thân pháp', than_thuc: 'thần thức', dao_tam: 'đạo tâm', co_duyen: 'cơ duyên', tam_ma: 'tâm ma' }[sk] || sk.replace(/_/g, ' ')} ${sv > 0 ? '+' : ''}${sv}`);
         if (typeof e.dao_tam === 'number' && e.dao_tam > 0) add(0.8 * e.dao_tam, `đạo tâm +${e.dao_tam}`);
         if (e.phuc_phan) {
+          // phúc phận: tung xác suất (lần đầu trong cửa sổ năm = ti_le[0]); trúng thì các hiệu ứng "if node_flag phuc.<nhom>" chạy
           const tl = ((e.phuc_phan.ti_le || [0.25])[0]) || 0.25;
-          add(1.2 * tl, `${Math.round(tl * 100)}% được +1 chỉ số`);
+          const flag = `phuc.${e.phuc_phan.nhom}`;
+          const rew = arr.filter((f) => f && f.if && f.if.node_flag === flag).map((f) => ({ ...f, if: undefined }));
+          if (rew.length) {
+            const tmp = { v: 0, parts: [], time: 0 };
+            this.walkVal(ctx, S, V, rew, tmp, 1, winP, '');
+            out.v += k * tl * tmp.v;
+            out.time += k * tl * tmp.time;
+            if (k > 0.15) for (const t of tmp.parts) out.parts.push(`${pre}${t}${tl < 0.99 ? ` (${Math.round(tl * 100)}%)` : ''}`);
+          } else add(1.2 * tl, `${Math.round(tl * 100)}% được +1 chỉ số`);
         }
+        if (typeof e.tam_ma === 'number' && e.tam_ma < 0) add(-0.15 * e.tam_ma * (S.tamMa > 0 ? 2 : 0.3), `tâm ma ${e.tam_ma}`);
+        if (typeof e.heal === 'number') add(S.thuongThe > 0 ? 1.5 * Math.min(e.heal, S.thuongThe) : 0, `chữa ${e.heal} bậc thương thế`);
         if (e.kinh_nghiem_nghe) add(0.15, 'kinh nghiệm nghề');
         if (typeof e.injury === 'number' && e.injury > 0) add(-1.5 * e.injury * (S.thuongThe >= 1 ? 2 : 1), `thương thế +${e.injury}`);
         if (typeof e.tam_ma === 'number' && e.tam_ma > 0) add(-0.15 * e.tam_ma, `tâm ma +${e.tam_ma}`);
         if (typeof e.tho_nguyen === 'number') add(e.tho_nguyen > 0 ? e.tho_nguyen / 4 : e.tho_nguyen / 2, `thọ ${e.tho_nguyen > 0 ? '+' : ''}${e.tho_nguyen}`);
         if (e.add_item !== undefined) add(0.4, 'nhận vật phẩm');
-        if (e.treo_thuong !== undefined) out.board = true;
+        // treo_thuong: 'tong_mon' = bảng sư môn (Điện nhiệm vụ); true = bảng của chính nơi này (trấn, thành)
+        if (e.treo_thuong !== undefined) out.board = e.treo_thuong === 'tong_mon' ? 'tong_mon' : 'thanh_tran';
         if (e.lap_dong_phu) out.cave = true;
-        if (e.be_quan || e.be_quan_linh_mach || e.mo_tinh_that) out.seat = e.be_quan_linh_mach ? 'lm' : typeof e.be_quan === 'object' ? e.be_quan : 'thuong';
+        // "Mở tĩnh thất" ở sư môn = mở KHO ĐỒ sư môn (game: mo_tinh_that → kho_do), không phải chỗ bế quan
+        if (e.mo_tinh_that) out.kho = true;
+        if (e.be_quan || e.be_quan_linh_mach) out.seat = e.be_quan_linh_mach ? 'lm' : typeof e.be_quan === 'object' ? e.be_quan : 'thuong';
         if (e.linh_bong_loc) out.bong = true;
         if (e.ap_che_tam_ma) add(S.tamMa > 0 ? 1 + S.tamMa * 0.2 : 0, `sư phụ áp chế tâm ma (đang ${S.tamMa})`);
         if (e.thanh_tich === 'tien_cu') add(2, 'được tiến cử chân truyền');
@@ -1560,6 +1576,30 @@
       }
       return null;
     }
+    // Việc trên một bảng treo thưởng (game: world/bounty.bangTreoThuong): 'tong_mon' = bảng sư môn,
+    // 'thanh_tran' = bảng của nơi đang đứng. Chỉ giữ việc hợp cảnh giới và đi tới kịp hạn; xếp theo lời / thời gian.
+    boardJobs(ctx, S, V, kind) {
+      const slot = kind === 'tong_mon' ? S.sect && S.sect.slot : S.viTri;
+      if (!slot) return [];
+      const list = safe(() => this.m('world/bounty').bangTreoThuong(ctx, slot, kind), []) || [];
+      const clean = (t) => String(t).replace(/[-]/g, '');
+      const out = [];
+      for (const j of list) {
+        const ten0 = clean(j.ten || '');
+        const tierName = ((ten0.match(/·\s*([^·]+)$/) || [])[1] || '').trim();
+        const tier = REALM_SHORT.findIndex((r) => tierName.startsWith(r));
+        if (tier > S.cg) continue;
+        const travel = safe(() => this.m('world/travel').travelYears(ctx, j.slot), 1) || 0;
+        const han = j.han || 99;
+        if (travel > han - 0.25) continue; // không kịp hạn
+        const lt = j.thuong || 0;
+        const ch = j.congHien || 0;
+        const val = lt / V.ltY + (ch / V.chY) * (V.needCH ? 1.6 : 0.8) - travel * 0.7 + 0.3;
+        const thuong = [lt ? `+${lt} linh thạch` : '', ch ? `+${ch} cống hiến` : ''].filter(Boolean).join(', ') || 'thưởng nhỏ';
+        out.push({ ten: ten0.replace(/\s*·\s*[^·]+$/, ''), tier: tierName, travel, han, lt, ch, val, thuong, slot: j.slot });
+      }
+      return out.sort((a, b) => b.val - a.val);
+    }
     // Phần chấm cần biết hoàn cảnh: món cần mua, bảng nhiệm vụ, khai phủ, chỗ bế quan, bổng lộc, săn
     extraEval(ctx, S, V, r, text) {
       const it = this.itemNeed(V, text);
@@ -1568,37 +1608,42 @@
         r.parts.unshift(it.why);
       }
       if (r.board) {
-        const ms = this.missions(ctx, S);
-        if (ms.length) {
-          const m = ms[0];
-          r.v = Math.max(r.v, (m.ch / V.chY) * (V.needCH ? 1.6 : 0.8) - (m.travel || 0) * 0.5 + 0.3);
-          r.parts.push(`mở bảng: nên nhận "${m.ten}" (+${m.ch} cống hiến, đi ${yrs(m.travel)})`);
-        } else r.parts.push('mở bảng nhiệm vụ (chưa thấy việc hợp cảnh giới)');
+        const jobs = this.boardJobs(ctx, S, V, r.board);
+        const where = r.board === 'tong_mon' ? 'bảng sư môn' : 'bảng của nơi này';
+        if (jobs.length) {
+          const m = jobs[0];
+          r.v = Math.max(r.v, m.val);
+          r.parts.push(`mở ${where}: nên nhận "${m.ten}" (${m.thuong} · đi ${yrs(m.travel)}, hạn ${yrs(m.han)})`);
+          if (jobs.length > 1) r.parts.push(`hoặc "${jobs[1].ten}"`);
+        } else r.parts.push(`${where} không có việc hợp cảnh giới / kịp hạn`);
       }
+      if (r.kho) r.parts.push('mở kho đồ sư môn (cất / lấy đồ), KHÔNG phải chỗ bế quan');
       if (r.cave) {
         const ce = this.caveEval(ctx, S, V, S.viTri);
         r.v += ce.v;
         r.parts.unshift(...ce.parts);
       }
       if (r.seat) {
-        const here = (S.here && S.here.tuViNam) || 0;
-        let rate = here;
-        let note = '';
-        let cost = 0;
+        // hỏi thẳng game: tốc độ tu + tiền thuê / cống hiến mỗi năm của chỗ ngồi này
+        const bq = this.m('progress/be_quan');
+        let opt = null;
         if (r.seat === 'lm') {
-          // linh mạch sư môn: hệ số theo cấp bậc (game: 1 / 1,1 / 1,3 / 1,4 / 1,5), trừ cống hiến mỗi năm
+          // linh mạch sư môn (game: he_so [1,1.1,1.3,1.4,1.5][cấp bậc], mốc [3,3,4,4,4], trừ cống hiến / năm)
           const cap = (S.sect && S.sect.capBac) || 0;
-          const mul = [1, 1.1, 1.3, 1.4, 1.5][cap] || 1;
-          cost = safe(() => this.m('progress/tong_mon').giaLinhMachNam(ctx), 0) || 0;
-          rate = here * mul;
-          note = ` (×${num(mul, 1)}, tốn ${num(cost, 1)} cống hiến/năm)`;
-        } else if (typeof r.seat === 'object' && r.seat.he_so) {
-          rate = here * r.seat.he_so;
-          note = ` (${r.seat.ten || 'chỗ ngồi'} ×${num(r.seat.he_so, 1)})`;
-        }
+          opt = { ten: 'Linh mạch sư môn', he_so: [1, 1.1, 1.3, 1.4, 1.5][cap] || 1, moc_toi_da: [3, 3, 4, 4, 4][cap] || 3, meritPerYear: safe(() => this.m('progress/tong_mon').giaLinhMachNam(ctx), 0) || 0 };
+        } else if (typeof r.seat === 'object') opt = r.seat;
+        const prep = safe(() => (opt ? bq.chuanBiBeQuan(ctx, opt) : bq.chuanBiBeQuan(ctx)), null);
+        const rate = prep && prep.tuViNam != null ? prep.tuViNam : (S.here && S.here.tuViNam) || 0;
+        const rent = (prep && prep.rentPerYear) || 0;
+        const merit = (opt && opt.meritPerYear) || 0;
+        const fee = [rent ? `thuê ${num(rent, 0)} linh thạch/năm` : '', merit ? `tốn ${num(merit, 1)} cống hiến/năm` : ''].filter(Boolean).join(', ');
         const good = rate >= V.best * 0.97;
-        r.v += (good ? 3 : 0.2) + (rate / Math.max(0.1, V.best) - 1) * 3 - (cost / V.chY) * (V.needCH ? 1.6 : 0.5);
-        r.parts.push(`bế quan ~${num(rate, 2)} tu vi/năm${note}${good ? '' : `; chỗ tốt nhất ${num(V.best, 2)}${V.bestTen ? ` ở ${V.bestTen}` : ''}`}`);
+        r.v += (good ? 3 : 0.2) + (rate / Math.max(0.1, V.best) - 1) * 3 - (merit / V.chY) * (V.needCH ? 1.6 : 0.5) - rent / V.ltY;
+        if (rent && V.lt < rent) {
+          r.v -= 3;
+          r.parts.push(`không đủ tiền thuê (${num(rent, 0)} linh thạch/năm, có ${Math.floor(V.lt)})`);
+        }
+        r.parts.push(`bế quan ~${num(rate, 2)} tu vi/năm${opt && opt.ten ? ` (${opt.ten})` : ''}${fee ? `, ${fee}` : ''}${good ? '' : `; chỗ tốt nhất ${num(V.best, 2)}${V.bestTen ? ` ở ${V.bestTen}` : ''}`}`);
       }
       if (r.bong) {
         const b = safe(() => this.m('progress/tong_mon').bongLoc(ctx), null);
@@ -1682,7 +1727,7 @@
             if (!best || e.v > best.v) best = e;
           }
           if (best) r = { v: best.v, risk: best.risk, parts: [`vào rồi chọn "${best.text}"`, ...best.parts] };
-          else r = { v: 0, parts: [(def && def.text ? String(def.text).replace(/\{[^}]+\}/g, '…').split(/(?<=[.!?])\s/)[0] : 'xem thử')] };
+          else r = { v: 0, parts: [def && (def.choices || []).some((c) => c && c.text && (c.effects || []).length) ? 'lúc này chưa có lựa chọn nào dùng được (chưa đủ điều kiện)' : 'chỉ để xem'] };
           // Các điện có lựa chọn sinh động (danh sách đổi theo kho): mô tả tay
           const HALL = {
             'ev.tang_kinh_cac': 'đổi công pháp bằng cống hiến (tâm pháp tăng tốc tu / trợ đột phá, gắn vào kinh mạch)',
@@ -1693,6 +1738,8 @@
             'ev.nhan_su_tong_mon': 'chỉ xem bảng nhân sự, không được gì',
             'ev.bai_su': 'bái sư phụ (cần đủ cấp bậc): về sau "Thỉnh giáo" được ngộ tính, áp chế tâm ma, tiến cử chân truyền. Nên chọn người cảnh giới cao',
             'ev.thinh_giao': 'thỉnh giáo sư phụ: +ngộ tính / áp chế tâm ma / học nghề',
+            'ev.tinh_that_tong_mon': 'kho đồ sư môn (cất / lấy đồ), KHÔNG phải chỗ bế quan',
+            'ev.khach_diem': 'thuê phòng dưỡng thương (chỉ dùng khi đang bị thương, tới Trúc Cơ)',
           };
           if (a.id === 'ev.tang_kinh_cac') {
             const cp = V.lev.find((x) => x.kind === 'cp' && x.where && x.where.kind === 'sect');

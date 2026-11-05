@@ -5,6 +5,14 @@ Bảng hướng dẫn luôn chạy cạnh game, tự cập nhật mỗi khi tr�
 (Luyện Khí → Hóa Thần), **phân tích đột phá**, **chỗ tu luyện tốt nhất** quanh đây, và
 **chấm điểm từng lựa chọn** khi đang ở một sự kiện hay giao chiến.
 
+## Tải về (link trực tiếp, dán được vào ô cài mod bằng link)
+
+- Mod: https://raw.githubusercontent.com/kasakigaming/vktt-mod/main/dist/vkt_tro_dao.zip
+- Userscript: https://raw.githubusercontent.com/kasakigaming/vktt-mod/main/dist/vkt_tro_dao.user.js
+
+(Link trong mục Releases chỉ tải được bằng trình duyệt; game tải bằng `fetch` nên cần link
+`raw.githubusercontent.com` ở trên, máy chủ này cho phép CORS.)
+
 Khác với kiểu đọc màn hình của `chess_realtime`, Trợ Đạo đọc thẳng trạng thái game
 qua cửa mod chính thức `window.tuTien`, và tính bằng **chính hàm lõi của game**
 (`tuTien.core`). Vì vậy tỉ lệ đột phá, tu vi/năm, nơi có chủ, xác suất lựa chọn… khớp
